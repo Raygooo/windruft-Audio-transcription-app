@@ -56,7 +56,7 @@ const DropZone = ({
 
         const data = await response.json();
         onTranscriptionComplete(data.text);
-      } catch (err) {
+      } catch {
         onError('Failed to transcribe audio. Please try again.');
       } finally {
         setIsLoading(false);
