@@ -3,11 +3,11 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
+import { AudioFile } from '@/types/audio';
 
 interface DropZoneProps {
-  onTranscriptionComplete: (result: string) => void;
+  onFilesAdded: (files: AudioFile[]) => void;
   onError: (error: string) => void;
-  setIsLoading: (loading: boolean) => void;
 }
 
 const ACCEPTED_FILE_TYPES = {
@@ -17,59 +17,62 @@ const ACCEPTED_FILE_TYPES = {
   'audio/aac': ['.aac'],
 };
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB
 
-const DropZone = ({
-  onTranscriptionComplete,
-  onError,
-  setIsLoading,
-}: DropZoneProps) => {
+const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
-      const file = acceptedFiles[0];
+      const processedFiles: AudioFile[] = [];
 
-      if (!file) {
-        onError('Please select a valid audio file.');
-        return;
-      }
-
-      if (file.size > MAX_FILE_SIZE) {
-        onError('File size exceeds 25MB limit.');
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await fetch('/api/transcribe', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error('Transcription failed');
+      for (const file of acceptedFiles) {
+        if (file.size > MAX_FILE_SIZE) {
+          onError(`File ${file.name} exceeds 64MB limit.`);
+          continue;
         }
 
-        const data = await response.json();
-        onTranscriptionComplete(data.text);
-      } catch {
-        onError('Failed to transcribe audio. Please try again.');
-      } finally {
-        setIsLoading(false);
+        // Create an audio element to get duration
+        const audio = new Audio();
+        const objectUrl = URL.createObjectURL(file);
+
+        try {
+          await new Promise((resolve, reject) => {
+            audio.addEventListener('loadedmetadata', () => {
+              URL.revokeObjectURL(objectUrl);
+              resolve(audio.duration);
+            });
+            audio.addEventListener('error', reject);
+            audio.src = objectUrl;
+          });
+
+          processedFiles.push({
+            id: crypto.randomUUID(),
+            file,
+            name: file.name,
+            size: file.size,
+            duration: audio.duration,
+            currentTime: 0,
+            isExpanded: false,
+            isPlaying: false,
+          });
+        } catch {
+          onError(`Failed to process file ${file.name}`);
+        }
+      }
+
+      if (processedFiles.length > 0) {
+        onFilesAdded(processedFiles);
       }
     },
-    [onTranscriptionComplete, onError, setIsLoading]
+    [onFilesAdded, onError]
   );
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     onDrop,
     accept: ACCEPTED_FILE_TYPES,
     maxSize: MAX_FILE_SIZE,
-    multiple: false,
+    multiple: true,
     onDragEnter: () => setIsDragging(true),
     onDragLeave: () => setIsDragging(false),
   });
@@ -114,11 +117,11 @@ const DropZone = ({
             {isDragReject
               ? 'Invalid file type'
               : isDragActive
-              ? 'Drop the file here'
-              : 'Drag & drop an audio file here, or click to select'}
+              ? 'Drop the files here'
+              : 'Drag & drop audio files here, or click to select'}
           </p>
           <p className="text-xs mt-2">
-            Supports MP3, WAV, M4A, and AAC (max 25MB)
+            Supports MP3, WAV, M4A, and AAC (max 64MB)
           </p>
         </div>
       </div>

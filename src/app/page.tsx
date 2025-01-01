@@ -2,71 +2,105 @@
 
 import { useState } from 'react';
 import DropZone from '@/components/DropZone';
-import TranscriptionResult from '@/components/TranscriptionResult';
+import AudioFileList from '@/components/AudioFileList';
+import { AudioFile } from '@/types/audio';
 
 export default function Home() {
-  const [transcription, setTranscription] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [files, setFiles] = useState<AudioFile[]>([]);
 
-  const handleTranscriptionComplete = (result: string) => {
-    setTranscription(result);
-    setError('');
+  const handleFilesAdded = (newFiles: AudioFile[]) => {
+    setFiles((prevFiles) => [...prevFiles, ...newFiles]);
   };
 
-  const handleError = (errorMessage: string) => {
-    setError(errorMessage);
-    setTranscription('');
+  const handleError = (error: string) => {
+    // You can implement a proper error notification system here
+    alert(error);
+  };
+
+  const handleTranscribe = async (id: string) => {
+    setFiles((prevFiles) =>
+      prevFiles.map((file) =>
+        file.id === id ? { ...file, isLoading: true } : file
+      )
+    );
+
+    const fileToTranscribe = files.find((file) => file.id === id);
+    if (!fileToTranscribe) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', fileToTranscribe.file);
+
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Transcription failed');
+      }
+
+      const data = await response.json();
+
+      setFiles((prevFiles) =>
+        prevFiles.map((file) =>
+          file.id === id
+            ? { ...file, transcription: data.text, isLoading: false }
+            : file
+        )
+      );
+    } catch {
+      handleError('Failed to transcribe audio. Please try again.');
+      setFiles((prevFiles) =>
+        prevFiles.map((file) =>
+          file.id === id ? { ...file, isLoading: false } : file
+        )
+      );
+    }
+  };
+
+  const handleToggleExpand = (id: string) => {
+    setFiles((prevFiles) =>
+      prevFiles.map((file) =>
+        file.id === id ? { ...file, isExpanded: !file.isExpanded } : file
+      )
+    );
+  };
+
+  const handleUpdateProgress = (id: string, currentTime: number) => {
+    setFiles((prevFiles) =>
+      prevFiles.map((file) =>
+        file.id === id ? { ...file, currentTime } : file
+      )
+    );
+  };
+
+  const handleDelete = (id: string) => {
+    setFiles((prevFiles) => prevFiles.filter((file) => file.id !== id));
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center">
-              <svg
-                className="h-6 w-6 text-gray-500"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-              </svg>
-            </div>
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Audio Transcription
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Upload your audio files and get accurate transcriptions powered by OpenAI.
+            </p>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            Audio Transcription
-          </h1>
-          <p className="mt-2 text-lg text-gray-600">
-            Convert your audio files to text using AI-powered transcription
-          </p>
-        </div>
 
-        <div className="mt-10">
-          <DropZone
-            onTranscriptionComplete={handleTranscriptionComplete}
-            onError={handleError}
-            setIsLoading={setIsLoading}
+          <DropZone onFilesAdded={handleFilesAdded} onError={handleError} />
+
+          <AudioFileList
+            files={files}
+            onTranscribe={handleTranscribe}
+            onToggleExpand={handleToggleExpand}
+            onUpdateProgress={handleUpdateProgress}
+            onDelete={handleDelete}
           />
-
-          {error && (
-            <div className="mt-4 p-4 bg-red-50 rounded-md">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          {isLoading && (
-            <div className="mt-4 text-center">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600" />
-              <p className="mt-2 text-sm text-gray-600">Processing your audio...</p>
-            </div>
-          )}
-
-          {transcription && <TranscriptionResult text={transcription} />}
         </div>
       </div>
     </main>
