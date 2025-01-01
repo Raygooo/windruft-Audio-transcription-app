@@ -4,17 +4,20 @@ import { useState } from 'react';
 import DropZone from '@/components/DropZone';
 import AudioFileList from '@/components/AudioFileList';
 import { AudioFile } from '@/types/audio';
+import Toast from '@/components/ui/Toast';
 
 export default function Home() {
   const [files, setFiles] = useState<AudioFile[]>([]);
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleFilesAdded = (newFiles: AudioFile[]) => {
     setFiles((prevFiles) => [...prevFiles, ...newFiles]);
   };
 
   const handleError = (error: string) => {
-    // You can implement a proper error notification system here
-    alert(error);
+    setErrorMessage(error);
+    setShowErrorToast(true);
   };
 
   const handleTranscribe = async (id: string) => {
@@ -80,15 +83,16 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">
+        <div className="space-y-8">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
               Audio Transcription
             </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Upload your audio files and get accurate transcriptions powered by OpenAI.
+            <p className="mt-3 text-lg text-gray-500 max-w-2xl mx-auto">
+              Transform your audio into text with AI-powered transcription. 
+              Upload your files and get accurate results in seconds.
             </p>
           </div>
 
@@ -101,6 +105,14 @@ export default function Home() {
             onUpdateProgress={handleUpdateProgress}
             onDelete={handleDelete}
           />
+
+          {showErrorToast && (
+            <Toast
+              message={errorMessage}
+              type="error"
+              onClose={() => setShowErrorToast(false)}
+            />
+          )}
         </div>
       </div>
     </main>

@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { AudioFile } from '@/types/audio';
 import { cn } from '@/lib/utils';
+import Toast from './ui/Toast';
 
 interface AudioFileItemProps {
   file: AudioFile;
@@ -30,6 +31,7 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     const url = URL.createObjectURL(file.file);
@@ -75,24 +77,37 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
     }
   };
 
+  const handleTranscribe = () => {
+    onTranscribe(file.id);
+    onToggleExpand(file.id); // Auto expand when transcribing
+  };
+
   const handleCopyTranscription = () => {
     if (file.transcription) {
       navigator.clipboard.writeText(file.transcription);
+      setShowToast(true);
     }
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className={cn(
+      "bg-white rounded-lg shadow-sm border transition-all duration-200",
+      {
+        "border-gray-200": !file.isExpanded,
+        "border-blue-200 shadow-md": file.isExpanded,
+      }
+    )}>
       <div className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
               onClick={handlePlayPause}
               className={cn(
-                "w-8 h-8 flex items-center justify-center rounded-full text-white transition-colors",
+                "w-8 h-8 flex items-center justify-center rounded-full text-white transition-all duration-200",
                 {
-                  'bg-blue-500 hover:bg-blue-600': !audioRef.current?.paused,
-                  'bg-green-500 hover:bg-green-600': audioRef.current?.paused,
+                  'bg-blue-500 hover:bg-blue-600 scale-100': !isPlaying,
+                  'bg-green-500 hover:bg-green-600 scale-95': isPlaying,
+                  'opacity-50 cursor-not-allowed': !audioUrl,
                 }
               )}
               disabled={!audioUrl}
@@ -117,8 +132,8 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
           <div className="flex items-center space-x-2">
             {!file.transcription && !file.isLoading && (
               <button
-                onClick={() => onTranscribe(file.id)}
-                className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                onClick={handleTranscribe}
+                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
               >
                 Transcribe
               </button>
@@ -126,12 +141,13 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
             {(file.transcription || file.isLoading) && (
               <button
                 onClick={() => onToggleExpand(file.id)}
-                className="p-2 text-gray-400 hover:text-gray-600"
+                className={cn(
+                  "p-2 text-gray-400 hover:text-gray-600 transition-transform duration-200",
+                  { "rotate-180": file.isExpanded }
+                )}
               >
                 <svg
-                  className={cn("w-5 h-5 transform transition-transform", {
-                    "rotate-180": file.isExpanded
-                  })}
+                  className="w-5 h-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -142,7 +158,7 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
             )}
             <button
               onClick={() => onDelete(file.id)}
-              className="p-2 text-red-400 hover:text-red-600"
+              className="p-2 text-gray-400 hover:text-red-600 transition-colors duration-200"
               title="Delete"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,11 +170,11 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
         
         <div className="mt-3">
           <div
-            className="h-2 bg-gray-200 rounded-full cursor-pointer"
+            className="h-2 bg-gray-100 rounded-full cursor-pointer overflow-hidden"
             onClick={handleProgressClick}
           >
             <div
-              className="h-2 bg-blue-500 rounded-full"
+              className="h-full bg-blue-500 rounded-full transition-all duration-200"
               style={{
                 width: `${((file.currentTime || 0) / file.duration) * 100}%`,
               }}
@@ -172,21 +188,24 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
       </div>
 
       {file.isExpanded && (
-        <div className="px-4 pb-4">
+        <div className={cn(
+          "px-4 pb-4 transition-all duration-300",
+          { "opacity-50": file.isLoading }
+        )}>
           {file.isLoading && (
-            <div className="flex items-center justify-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-blue-600" />
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-blue-600" />
             </div>
           )}
 
           {file.transcription && (
-            <div className="relative mt-2">
+            <div className="relative mt-2 bg-gray-50 rounded-lg p-4">
               <div className="text-sm text-gray-600 whitespace-pre-wrap pr-12">
                 {file.transcription}
               </div>
               <button
                 onClick={handleCopyTranscription}
-                className="absolute bottom-0 right-0 p-2 text-gray-400 hover:text-gray-600"
+                className="absolute bottom-4 right-4 p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
                 title="Copy transcription"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,6 +224,13 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
           onTimeUpdate={handleTimeUpdate}
           onEnded={() => setIsPlaying(false)}
           className="hidden"
+        />
+      )}
+
+      {showToast && (
+        <Toast
+          message="Transcription copied to clipboard!"
+          onClose={() => setShowToast(false)}
         />
       )}
     </div>
