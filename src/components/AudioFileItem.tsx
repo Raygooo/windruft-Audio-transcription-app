@@ -136,19 +136,19 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
             <div className="flex-1 space-y-1">
               <div 
                 className="flex items-center cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-                onClick={toggleExpand}
+                onClick={file.transcription ? toggleExpand : undefined}
               >
                 <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   {file.name}
                 </span>
                 <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                  ({formatFileSize(file.size)})
+                  (original: {formatFileSize(file.originalSize)}, compressed: {formatFileSize(file.compressedSize)})
                 </span>
-                {file.isExpanded ? (
+                {file.transcription && (file.isExpanded ? (
                   <ChevronUpIcon className="h-4 w-4 ml-1" />
                 ) : (
                   <ChevronDownIcon className="h-4 w-4 ml-1" />
-                )}
+                ))}
               </div>
 
               <div className="relative flex items-center flex-1">
@@ -175,9 +175,9 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
               <motion.button
                 layout="position"
                 onClick={handleTranscribe}
-                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-colors duration-200"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                className="px-3 py-1.5 text-sm ml-4 font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-colors duration-200"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
               >
                 Transcribe
               </motion.button>
@@ -210,7 +210,7 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
           }}
           className="overflow-hidden"
         >
-          {file.isLoading && (
+          {file.isLoading && !file.transcription && (
             <motion.div
               variants={contentAnimation}
               initial="hidden"

@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
 import { AudioFile } from '@/types/audio';
 import { UploadIcon } from './icons';
+import { compressAudioFile } from '@/lib/audioCompression';
 
 interface DropZoneProps {
   onFilesAdded: (files: AudioFile[]) => void;
@@ -18,10 +19,11 @@ const ACCEPTED_FILE_TYPES = {
   'audio/aac': ['.aac'],
 };
 
-const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // Reduced to 25MB to ensure compressed file stays under OpenAI's limit
 
 const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [isCompressing, setIsCompressing] = useState<{ [key: string]: boolean }>({});
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -29,15 +31,21 @@ const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
 
       for (const file of acceptedFiles) {
         if (file.size > MAX_FILE_SIZE) {
-          onError(`File ${file.name} exceeds 64MB limit.`);
+          onError(`File ${file.name} exceeds 25MB limit.`);
           continue;
         }
 
-        // Create an audio element to get duration
-        const audio = new Audio();
-        const objectUrl = URL.createObjectURL(file);
+        const fileId = crypto.randomUUID();
+        setIsCompressing(prev => ({ ...prev, [fileId]: true }));
 
         try {
+          // Compress the audio file
+          const { compressedFile, originalSize, compressedSize } = await compressAudioFile(file);
+
+          // Create an audio element to get duration
+          const audio = new Audio();
+          const objectUrl = URL.createObjectURL(compressedFile);
+
           await new Promise((resolve, reject) => {
             audio.addEventListener('loadedmetadata', () => {
               URL.revokeObjectURL(objectUrl);
@@ -48,17 +56,22 @@ const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
           });
 
           processedFiles.push({
-            id: crypto.randomUUID(),
-            file,
+            id: fileId,
+            file: compressedFile,
             name: file.name,
-            size: file.size,
-            duration: audio.duration,
             currentTime: 0,
+            isLoading: false,
+            duration: audio.duration,
+            progress: 0,
             isExpanded: false,
-            isPlaying: false,
+            transcription: null,
+            originalSize,
+            compressedSize
           });
-        } catch {
+        } catch (error) {
           onError(`Failed to process file ${file.name}`);
+        } finally {
+          setIsCompressing(prev => ({ ...prev, [fileId]: false }));
         }
       }
 
@@ -118,7 +131,7 @@ const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
                 : 'Drop audio files here or click to browse'}
             </p>
             <p className="text-xs mt-1">
-              Supported formats: MP3, WAV, M4A, AAC (max 64MB)
+              Supported formats: MP3, WAV, M4A, AAC (max 25MB)
             </p>
           </div>
         </div>
