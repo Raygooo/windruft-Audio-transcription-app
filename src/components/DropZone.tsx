@@ -8,7 +8,7 @@ import { UploadIcon } from './icons';
 import { compressAudioFile } from '@/lib/audioCompression';
 
 interface DropZoneProps {
-  onFilesAdded: (files: AudioFile[]) => void;
+  onFilesAdded: (files: AudioFile[] | ((prevFiles: AudioFile[]) => AudioFile[])) => void;
   onError: (error: string) => void;
 }
 
@@ -27,16 +27,37 @@ const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
-      const processedFiles: AudioFile[] = [];
+      // Create initial files with unique IDs
+      const initialFiles: AudioFile[] = acceptedFiles.map(file => ({
+        id: crypto.randomUUID(),
+        file,
+        name: file.name,
+        currentTime: 0,
+        isLoading: false,
+        isCompressing: true,
+        duration: 0,
+        progress: 0,
+        isExpanded: false,
+        transcription: null,
+        originalSize: file.size,
+        compressedSize: 0
+      }));
 
-      for (const file of acceptedFiles) {
+      // Add initial files
+      onFilesAdded(prevFiles => {
+        const filesMap = new Map(prevFiles.map(file => [file.id, file]));
+        initialFiles.forEach(file => filesMap.set(file.id, file));
+        return Array.from(filesMap.values());
+      });
+
+      // Process files in background
+      for (const [index, file] of acceptedFiles.entries()) {
         if (file.size > MAX_FILE_SIZE) {
           onError(`File ${file.name} exceeds 25MB limit.`);
           continue;
         }
 
-        const fileId = crypto.randomUUID();
-        setIsCompressing(prev => ({ ...prev, [fileId]: true }));
+        const currentFile = initialFiles[index];
 
         try {
           // Compress the audio file
@@ -49,34 +70,46 @@ const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
           await new Promise((resolve, reject) => {
             audio.addEventListener('loadedmetadata', () => {
               URL.revokeObjectURL(objectUrl);
-              resolve(audio.duration);
+              
+              // Update the file with compression results
+              onFilesAdded(prevFiles => {
+                return prevFiles.map(f => 
+                  f.id === currentFile.id 
+                    ? {
+                        ...f,
+                        file: compressedFile,
+                        duration: audio.duration,
+                        isCompressing: false,
+                        originalSize,
+                        compressedSize
+                      }
+                    : f
+                );
+              });
+              resolve(null);
             });
-            audio.addEventListener('error', reject);
+
+            audio.addEventListener('error', (error) => {
+              URL.revokeObjectURL(objectUrl);
+              reject(error);
+            });
+
             audio.src = objectUrl;
           });
 
-          processedFiles.push({
-            id: fileId,
-            file: compressedFile,
-            name: file.name,
-            currentTime: 0,
-            isLoading: false,
-            duration: audio.duration,
-            progress: 0,
-            isExpanded: false,
-            transcription: null,
-            originalSize,
-            compressedSize
-          });
         } catch (error) {
-          onError(`Failed to process file ${file.name}`);
-        } finally {
-          setIsCompressing(prev => ({ ...prev, [fileId]: false }));
+          console.error('Error processing file:', error);
+          onError(`Error processing ${file.name}: ${error.message}`);
+          
+          // Update error state
+          onFilesAdded(prevFiles => 
+            prevFiles.map(f => 
+              f.id === currentFile.id 
+                ? { ...f, isCompressing: false, progress: 0 }
+                : f
+            )
+          );
         }
-      }
-
-      if (processedFiles.length > 0) {
-        onFilesAdded(processedFiles);
       }
     },
     [onFilesAdded, onError]

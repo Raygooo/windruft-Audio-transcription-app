@@ -138,17 +138,32 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
                 className="flex items-center cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
                 onClick={file.transcription ? toggleExpand : undefined}
               >
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {file.name}
-                </span>
-                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                  (original: {formatFileSize(file.originalSize)}, compressed: {formatFileSize(file.compressedSize)})
-                </span>
-                {file.transcription && (file.isExpanded ? (
-                  <ChevronUpIcon className="h-4 w-4 ml-1" />
-                ) : (
-                  <ChevronDownIcon className="h-4 w-4 ml-1" />
-                ))}
+                <div className="flex items-center">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {file.name}
+                  </span>
+                  {file.isCompressing && (
+                    <span className="ml-2 text-xs text-blue-500 animate-pulse flex items-center">
+                      <WaveformIcon className="w-3 h-3 mr-1" />
+                      Compressing...
+                    </span>
+                  )}
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                    {file.isCompressing ? (
+                      `(${formatFileSize(file.originalSize)})`
+                    ) : (
+                      <>
+                        (original: {formatFileSize(file.originalSize)}, 
+                        compressed: {formatFileSize(file.compressedSize)})
+                      </>
+                    )}
+                  </span>
+                  {file.transcription && (file.isExpanded ? (
+                    <ChevronUpIcon className="h-4 w-4 ml-1" />
+                  ) : (
+                    <ChevronDownIcon className="h-4 w-4 ml-1" />
+                  ))}
+                </div>
               </div>
 
               <div className="relative flex items-center flex-1">

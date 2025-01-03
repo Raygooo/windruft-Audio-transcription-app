@@ -13,8 +13,24 @@ export default function Home() {
   const [showErrorToast, setShowErrorToast] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleFilesAdded = (newFiles: AudioFile[]) => {
-    setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+  const handleFilesAdded = (newFilesOrUpdater: AudioFile[] | ((prevFiles: AudioFile[]) => AudioFile[])) => {
+    setFiles(prevFiles => {
+      // If it's a function updater, just return its result
+      if (typeof newFilesOrUpdater === 'function') {
+        return newFilesOrUpdater(prevFiles);
+      }
+
+      // If it's an array of new files
+      const newFiles = newFilesOrUpdater;
+      const filesMap = new Map(prevFiles.map(file => [file.id, file]));
+      
+      // Update or add new files
+      newFiles.forEach(newFile => {
+        filesMap.set(newFile.id, newFile);
+      });
+
+      return Array.from(filesMap.values());
+    });
   };
 
   const handleError = (error: string) => {

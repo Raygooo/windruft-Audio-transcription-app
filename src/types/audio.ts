@@ -4,6 +4,7 @@ export interface AudioFile {
   name: string;
   currentTime: number;
   isLoading: boolean;
+  isCompressing: boolean; // New state for compression status
   duration: number;
   progress: number;
   isExpanded: boolean;
