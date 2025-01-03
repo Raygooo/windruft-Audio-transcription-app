@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { AudioFile } from '@/types/audio';
 import { cn } from '@/lib/utils';
 import Toast from './ui/Toast';
@@ -190,11 +190,17 @@ const AudioFileItem = ({ file, onTranscribe, onToggleExpand, onUpdateProgress, o
               <motion.button
                 layout="position"
                 onClick={handleTranscribe}
-                className="px-3 py-1.5 text-sm ml-4 font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-colors duration-200"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+                disabled={file.isCompressing}
+                className={cn(
+                  "px-3 py-1.5 text-sm ml-4 font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-colors duration-200",
+                  file.isCompressing
+                    ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
+                    : "text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600"
+                )}
+                whileHover={file.isCompressing ? {} : { scale: 1.1 }}
+                whileTap={file.isCompressing ? {} : { scale: 0.9 }}
               >
-                Transcribe
+                {file.isCompressing ? "Compressing..." : "Transcribe"}
               </motion.button>
             )}
             <motion.button

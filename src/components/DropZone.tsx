@@ -19,11 +19,10 @@ const ACCEPTED_FILE_TYPES = {
   'audio/aac': ['.aac'],
 };
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // Reduced to 25MB to ensure compressed file stays under OpenAI's limit
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // Allow larger initial files (100MB) since we'll check compressed size
 
 const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [isCompressing, setIsCompressing] = useState<{ [key: string]: boolean }>({});
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -53,62 +52,81 @@ const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
       // Process files in background
       for (const [index, file] of acceptedFiles.entries()) {
         if (file.size > MAX_FILE_SIZE) {
-          onError(`File ${file.name} exceeds 25MB limit.`);
+          onError(`File ${file.name} exceeds 100MB limit.`);
           continue;
         }
 
         const currentFile = initialFiles[index];
-
+        
         try {
-          // Compress the audio file
-          const { compressedFile, originalSize, compressedSize } = await compressAudioFile(file);
+          // Update initial state to show compression starting
+          onFilesAdded(prevFiles =>
+            prevFiles.map(f =>
+              f.id === currentFile.id
+                ? { ...f, isCompressing: true, progress: 0 }
+                : f
+            )
+          );
+
+          const { compressedFile, compressedSize } = await compressAudioFile(
+            file,
+            (progress) => {
+              onFilesAdded(prevFiles =>
+                prevFiles.map(f =>
+                  f.id === currentFile.id
+                    ? { ...f, progress: Math.round(progress * 100) }
+                    : f
+                )
+              );
+            }
+          );
 
           // Create an audio element to get duration
           const audio = new Audio();
           const objectUrl = URL.createObjectURL(compressedFile);
+          audio.src = objectUrl;
 
-          await new Promise((resolve, reject) => {
+          await new Promise<void>((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              URL.revokeObjectURL(objectUrl);
+              reject(new Error('Timeout while loading audio metadata'));
+            }, 5000);
+
             audio.addEventListener('loadedmetadata', () => {
+              clearTimeout(timeoutId);
               URL.revokeObjectURL(objectUrl);
               
-              // Update the file with compression results
-              onFilesAdded(prevFiles => {
-                return prevFiles.map(f => 
-                  f.id === currentFile.id 
+              // Update file with compression results
+              onFilesAdded(prevFiles =>
+                prevFiles.map(f =>
+                  f.id === currentFile.id
                     ? {
                         ...f,
                         file: compressedFile,
                         duration: audio.duration,
                         isCompressing: false,
-                        originalSize,
+                        progress: 100,
                         compressedSize
                       }
                     : f
-                );
-              });
-              resolve(null);
+                )
+              );
+              resolve();
             });
 
-            audio.addEventListener('error', (error) => {
+            audio.addEventListener('error', () => {
+              clearTimeout(timeoutId);
               URL.revokeObjectURL(objectUrl);
-              reject(error);
+              reject(new Error('Error loading audio metadata'));
             });
-
-            audio.src = objectUrl;
           });
 
         } catch (error) {
           console.error('Error processing file:', error);
-          onError(`Error processing ${file.name}: ${error.message}`);
+          onError(`Error processing ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
           
-          // Update error state
-          onFilesAdded(prevFiles => 
-            prevFiles.map(f => 
-              f.id === currentFile.id 
-                ? { ...f, isCompressing: false, progress: 0 }
-                : f
-            )
-          );
+          // Remove the failed file from the list
+          onFilesAdded(prevFiles => prevFiles.filter(f => f.id !== currentFile.id));
         }
       }
     },
@@ -164,7 +182,7 @@ const DropZone = ({ onFilesAdded, onError }: DropZoneProps) => {
                 : 'Drop audio files here or click to browse'}
             </p>
             <p className="text-xs mt-1">
-              Supported formats: MP3, WAV, M4A, AAC (max 25MB)
+              Supported formats: MP3, WAV, M4A, AAC (max 100MB)
             </p>
           </div>
         </div>
